@@ -66,4 +66,22 @@ def get_gas_prices(zip: str = Query(..., min_length=5, max_length=5)):
         results = []
 
         for station in stations:
-            name = station.get("nam
+            name = station.get("name")
+            address_info = station.get("address", {})
+            address = f"{address_info.get('line1', '')}, {address_info.get('locality', '')}, {address_info.get('region', '')} {address_info.get('postalCode', '')}"
+            prices = station.get("prices", [])
+            if prices:
+                price_info = prices[0]
+                price = price_info.get("cash", {}).get("price") or price_info.get("credit", {}).get("price")
+                updated = price_info.get("cash", {}).get("posted_time") or price_info.get("credit", {}).get("posted_time")
+                results.append({
+                    "name": name,
+                    "address": address,
+                    "price": price,
+                    "updated": updated
+                })
+
+        return results
+
+    except Exception as e:
+        return {"error": str(e)}
