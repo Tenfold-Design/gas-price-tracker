@@ -9,7 +9,7 @@ export default function App() {
     setLoading(true);
     try {
       const response = await fetch(
-        `https://YOUR-BACKEND.onrender.com/api/gas?zip=${zip}`
+        `https://gas-price-tracker-1ij7.vercel.app/`
       );
       const data = await response.json();
       setStations(data);
