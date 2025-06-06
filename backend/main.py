@@ -16,14 +16,13 @@ app.add_middleware(
 @app.get("/api/gas")
 def get_gas_prices(zip: str = Query(..., min_length=5, max_length=5)):
     url = "https://www.gasbuddy.com/graphql"
-    headers = {"Content-Type": "application/json"}
-    payload = {
-        "operationName": "LocationBySearchTerm",
-        "variables": {
-            "fuel": 1,  # 1 = Regular gas
-            "maxAge": 0,
-            "search": zip
-        },
+    headers = {
+    "Content-Type": "application/json",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+                  "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+    "Referer": "https://www.gasbuddy.com/",
+    "Origin": "https://www.gasbuddy.com"
+},
         "query": """
         query LocationBySearchTerm($search: String, $fuel: Int, $maxAge: Int) {
           locationBySearchTerm(search: $search) {
