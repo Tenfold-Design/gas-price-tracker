@@ -1,46 +1,84 @@
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from typing import List
-import httpx
-from bs4 import BeautifulSoup
+import requests
 
 app = FastAPI()
 
+# Enable CORS for frontend access
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # Adjust this in production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-class Station(BaseModel):
-    name: str
-    address: str
-    price: float
-    updated: str
+@app.get("/api/gas")
+def get_gas_prices(zip: str = Query(..., min_length=5, max_length=5)):
+    url = "https://www.gasbuddy.com/graphql"
+    headers = {"Content-Type": "application/json"}
+    payload = {
+        "operationName": "LocationBySearchTerm",
+        "variables": {
+            "fuel": 1,  # 1 = Regular gas
+            "maxAge": 0,
+            "search": zip
+        },
+        "query": """
+        query LocationBySearchTerm($search: String, $fuel: Int, $maxAge: Int) {
+          locationBySearchTerm(search: $search) {
+            stations(fuel: $fuel, maxAge: $maxAge) {
+              results {
+                name
+                address {
+                  line1
+                  locality
+                  region
+                  postalCode
+                }
+                prices {
+                  fuel_product
+                  cash {
+                    price
+                    posted_time
+                  }
+                  credit {
+                    price
+                    posted_time
+                  }
+                }
+              }
+            }
+          }
+        }
+        """
+    }
 
-@app.get("/api/gas", response_model=List[Station])
-async def get_gas_prices(zip: str = Query(...)):
-    url = f"https://www.gasbuddy.com/home?search={zip}&fuel=1"
-    headers = {"User-Agent": "Mozilla/5.0"}
+    try:
+        response = requests.post(url, headers=headers, json=payload, timeout=10)
+        response.raise_for_status()
+        data = response.json()
 
-    async with httpx.AsyncClient() as client:
-        r = await client.get(url, headers=headers)
-    soup = BeautifulSoup(r.text, "html.parser")
-    listings = soup.select("div.GasStationListItem")
+        stations = data.get("data", {}).get("locationBySearchTerm", {}).get("stations", {}).get("results", [])
+        results = []
 
-    stations = []
-    for item in listings:
-        try:
-            name = item.select_one(".station-name").text.strip()
-            address = item.select_one(".station-address").text.strip()
-            price_text = item.select_one(".fuel-price").text.strip()
-            price = float(price_text.replace("$", ""))
-            updated = item.select_one(".report-time").text.strip()
-            stations.append(Station(name=name, address=address, price=price, updated=updated))
-        except:
-            continue
-    stations.sort(key=lambda x: x.price)
-    return stations[:10]
+        for station in stations:
+            name = station.get("name")
+            address_info = station.get("address", {})
+            address = f"{address_info.get('line1', '')}, {address_info.get('locality', '')}, {address_info.get('region', '')} {address_info.get('postalCode', '')}"
+            prices = station.get("prices", [])
+            if prices:
+                price_info = prices[0]  # Assuming regular gas is the first entry
+                price = price_info.get("cash", {}).get("price") or price_info.get("credit", {}).get("price")
+                updated = price_info.get("cash", {}).get("posted_time") or price_info.get("credit", {}).get("posted_time")
+                results.append({
+                    "name": name,
+                    "address": address,
+                    "price": price,
+                    "updated": updated
+                })
+
+        return results
+
+    except Exception as e:
+        return {"error": str(e)}
