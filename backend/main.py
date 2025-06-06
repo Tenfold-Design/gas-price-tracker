@@ -14,7 +14,7 @@ app.add_middleware(
 )
 
 # Replace with your actual ScraperAPI key
-SCRAPER_API_KEY = os.getenv("SCRAPER_API_KEY") or "YOUR_API_KEY_HERE"
+SCRAPER_API_KEY = os.getenv("de52e1cbf1583015dc81e2bc74161d9e") or "de52e1cbf1583015dc81e2bc74161d9e"
 
 @app.get("/api/gas")
 def get_gas_prices(zip: str = Query(..., min_length=5, max_length=5)):
