@@ -1,43 +1,52 @@
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from bs4 import BeautifulSoup
 import requests
-import os
 
 app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # You can lock this down later
-    allow_credentials=True,
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Replace with your actual ScraperAPI key
-SCRAPER_API_KEY = os.getenv("de52e1cbf1583015dc81e2bc74161d9e") or "de52e1cbf1583015dc81e2bc74161d9e"
+SCRAPER_API_KEY = "de52e1cbf1583015dc81e2bc74161d9e"
+SCRAPER_URL = "http://api.scraperapi.com"
 
 @app.get("/api/gas")
-def get_gas_prices(zip: str = Query(..., min_length=5, max_length=5)):
-    # Build the ScraperAPI URL
+async def get_gas_prices(zip: str):
     target_url = f"https://www.gasbuddy.com/home?search={zip}&fuel=1"
-    scraper_url = f"https://api.scraperapi.com?api_key={SCRAPER_API_KEY}&url={target_url}"
+    response = requests.get(
+        SCRAPER_URL,
+        params={"api_key": SCRAPER_API_KEY, "url": target_url}
+    )
 
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
-                      "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+    if response.status_code != 200:
+        return {"status": "error", "message": "Failed to fetch data."}
+
+    soup = BeautifulSoup(response.text, "html.parser")
+
+    results = []
+    cards = soup.find_all("div", class_="GenericStationListItem__stationListItem___3Jmn4")
+
+    for card in cards:
+        try:
+            name = card.find("h3").text.strip()
+            price = card.find("span", class_="StationDisplayPrice__price___3rARL").text.strip()
+            address = card.find("div", class_="StationDisplay__address___1U4sr").text.strip()
+            results.append({
+                "name": name,
+                "price": price,
+                "address": address
+            })
+        except Exception:
+            continue
+
+    return {
+        "status": "success",
+        "zip": zip,
+        "source_url": target_url,
+        "stations": results
     }
-
-    try:
-        response = requests.get(scraper_url, headers=headers, timeout=15)
-        response.raise_for_status()
-        html = response.text
-
-        return {
-            "status": "success",
-            "source_url": target_url,
-            "scraped_via": "ScraperAPI",
-            "preview": html[:1000]  # Limit preview to reduce response size
-        }
-
-    except Exception as e:
-        return {"error": str(e)}
