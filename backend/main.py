@@ -20,7 +20,11 @@ async def get_gas_prices(zip: str):
     target_url = f"https://www.gasbuddy.com/home?search={zip}&fuel=1"
     response = requests.get(
         SCRAPER_URL,
-        params={"api_key": SCRAPER_API_KEY, "url": target_url}
+        params={
+            "api_key": SCRAPER_API_KEY,
+            "url": target_url,
+            "render": "true"  # Enable JS rendering
+        }
     )
 
     if response.status_code != 200:
