@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 import requests
+import os
 
 app = FastAPI()
 
@@ -12,76 +13,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+SCRAPER_API_KEY = os.getenv("SCRAPER_API_KEY") or "YOUR_API_KEY_HERE"
+
 @app.get("/api/gas")
 def get_gas_prices(zip: str = Query(..., min_length=5, max_length=5)):
-    url = "https://www.gasbuddy.com/graphql"
-    headers = {
-        "Content-Type": "application/json",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
-                      "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-        "Referer": "https://www.gasbuddy.com/",
-        "Origin": "https://www.gasbuddy.com"
-    }
-    payload = {
-        "operationName": "LocationBySearchTerm",
-        "variables": {
-            "fuel": 1,
-            "maxAge": 0,
-            "search": zip
-        },
-        "query": """query LocationBySearchTerm($search: String, $fuel: Int, $maxAge: Int) {
-            locationBySearchTerm(search: $search) {
-              stations(fuel: $fuel, maxAge: $maxAge) {
-                results {
-                  name
-                  address {
-                    line1
-                    locality
-                    region
-                    postalCode
-                  }
-                  prices {
-                    fuel_product
-                    cash {
-                      price
-                      posted_time
-                    }
-                    credit {
-                      price
-                      posted_time
-                    }
-                  }
-                }
-              }
-            }
-        }"""
-    }
+    scraper_url = f"https://api.scraperapi.com?api_key={SCRAPER_API_KEY}&url=https://www.gasbuddy.com/home?search={zip}&fuel=1"
+    headers = {"User-Agent": "Mozilla/5.0"}
 
     try:
-        response = requests.post(url, headers=headers, json=payload, timeout=10)
+        response = requests.get(scraper_url, headers=headers, timeout=15)
         response.raise_for_status()
-        data = response.json()
+        html = response.text
 
-        stations = data.get("data", {}).get("locationBySearchTerm", {}).get("stations", {}).get("results", [])
-        results = []
-
-        for station in stations:
-            name = station.get("name")
-            address_info = station.get("address", {})
-            address = f"{address_info.get('line1', '')}, {address_info.get('locality', '')}, {address_info.get('region', '')} {address_info.get('postalCode', '')}"
-            prices = station.get("prices", [])
-            if prices:
-                price_info = prices[0]
-                price = price_info.get("cash", {}).get("price") or price_info.get("credit", {}).get("price")
-                updated = price_info.get("cash", {}).get("posted_time") or price_info.get("credit", {}).get("posted_time")
-                results.append({
-                    "name": name,
-                    "address": address,
-                    "price": price,
-                    "updated": updated
-                })
-
-        return results
+        # Placeholder parsing, replace with real HTML logic
+        return {"status": "success", "message": "HTML fetched via ScraperAPI", "preview": html[:500]}
 
     except Exception as e:
         return {"error": str(e)}
